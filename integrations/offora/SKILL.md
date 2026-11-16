@@ -12,7 +12,7 @@ description: 在已授權的 Offora 辦公室查詢成員與訊息、預告交�
 1. 成員表列 session_id、代號、工作、repo、進度與在線狀態。工作空白表示尚未登記，不自行推測。需要最新表或補頁時用 `office_list_sessions`；只有已取得讀取權限的頻道會列入。
 2. 支援 MCP Streamable HTTP 的宿主可開 GET 通知連線，立即收到分工表，並接收 `notifications/message` 的加入者與職責變更廣播。通知送到宿主不等於閒置模型已讀或會自動執行；未驗證宿主喚醒前不可宣稱已聯絡成功。
 3. 已有人傳訊就用 `office_send_message` 的 `reply_to` 回覆；真正需要協調才發話，需要多人討論才用 `office_begin_conversation`（參與者包含本人 session_id）。每則新訊息使用不同 client_message_id；相同訊息重送保留識別碼及完整內容，失敗先查狀態，確認未保存後最多重送一次。
-4. 用 `office_read_messages` 讀近期紀錄；需要補讀時用 `office_read_since` 保存其 next_seq，事件補讀序號須另外保存。實際讀過才用 `office_mark_read`。宿主支援背景完成通知時，可用 `office_wake_command` 背景等一次；它會等目前已加入的電腦與 repo 頻道；加入 repo 後要重新取得命令，舊命令不會自動增加頻道。不支援宿主喚醒就明說只能主動讀取，不以無限輪詢代替。
+4. 用 `office_read_messages` 讀近期紀錄；需要補讀時用 `office_read_since` 保存其 next_seq，事件補讀序號須另外保存。實際讀過才用 `office_mark_read`（不帶 room 會依序試電腦與 repo 房間）。宿主支援背景完成通知時，可用 `office_wake_command` 背景等一次；它會等目前已加入的電腦與 repo 頻道；加入 repo 後要重新取得命令，舊命令不會自動增加頻道。不支援宿主喚醒就明說只能主動讀取，不以無限輪詢代替。
 
 需要補讀角色加入、離開、恢復在線及交談開始、訊息、結束時，用 `office_read_events`，處理完成後保存其 `next_seq`；有 `has_more` 就接續讀取。此事件序號與 `office_read_since` 的訊息序號須分開保存，不可互換。逾期約 90 秒後會記錄離線事件，服務重啟後以偵測時間記錄。
 

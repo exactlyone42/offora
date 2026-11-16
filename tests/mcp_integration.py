@@ -96,10 +96,10 @@ failed, wake = tool(key, a, "office_wake_command")
 assert not failed and wake["run_in_background"]
 
 
-def run_wake(seconds):
+def run_wake(seconds, command=None):
     env = {**os.environ, "TMPDIR": wake_dir}
     try:
-        return subprocess.run(["bash", "-c", wake["command"]], capture_output=True, text=True, timeout=seconds, env=env).stdout
+        return subprocess.run(["bash", "-c", command or wake["command"]], capture_output=True, text=True, timeout=seconds, env=env).stdout
     except subprocess.TimeoutExpired:
         return None
 
@@ -170,6 +170,43 @@ failed, read = tool(key3, e, "office_read_messages")
 assert not any(text in json.dumps(m, ensure_ascii=False) for m in read["messages"])
 failed, read = tool(key, b, "office_read_messages")
 assert any(text in json.dumps(m, ensure_ascii=False) for m in read["messages"])
+
+failed, who_d = tool(key2, d, "office_whoami")
+failed, who_d_repo = tool(key2, d, "office_whoami", {"room": "repo"})
+assert who_d["channel_id"] != who_d_repo["channel_id"]
+failed, wake_all = tool(key2, d, "office_wake_command")
+assert not failed and who_d["channel_id"] in wake_all["command"] and who_d_repo["channel_id"] in wake_all["command"], wake_all
+failed, wake_repo = tool(key2, d, "office_wake_command", {"room": "repo"})
+assert not failed and who_d_repo["channel_id"] in wake_repo["command"] and who_d["channel_id"] not in wake_repo["command"]
+failed, wake_computer = tool(key2, d, "office_wake_command", {"room": "computer"})
+assert not failed and who_d["channel_id"] in wake_computer["command"] and who_d_repo["channel_id"] not in wake_computer["command"]
+failed, repo_listing = tool(key2, d, "office_list_sessions", {"room": "repo"})
+code_d_repo = next(m["code"] for m in repo_listing["sessions"] if m["session_id"] == who_d_repo["session_id"])
+failed, _ = tool(key, a, "office_send_message", {"client_message_id": "rw-" + secrets.token_hex(8), "text": f"{code_d_repo} 請看 repo 房間"})
+assert not failed
+repo_woken = run_wake(25, wake_all["command"])
+assert repo_woken and "請看 repo 房間" in repo_woken, repo_woken
+
+failed, read_repo = tool(key2, d, "office_read_messages", {"room": "repo"})
+repo_message = next(m for m in read_repo["messages"] if text in json.dumps(m, ensure_ascii=False))
+assert repo_message["readers"] == []
+failed, ack = tool(key2, d, "office_mark_read", {"message_id": repo_message["message_id"]})
+assert not failed and ack["status"] == "read", ack
+failed, read_repo = tool(key2, d, "office_read_messages", {"room": "repo"})
+acked = next(m for m in read_repo["messages"] if m["message_id"] == repo_message["message_id"])
+assert [r["session_id"] for r in acked["readers"]] == [who_d_repo["session_id"]], acked
+failed, ack = tool(key2, d, "office_mark_read", {"message_id": repo_message["message_id"], "room": "repo"})
+assert not failed and ack["status"] == "read"
+failed, refused = tool(key2, d, "office_mark_read", {"message_id": repo_message["message_id"], "room": "computer"})
+assert failed and refused["error"]["code"] == "forbidden", refused
+failed, refused = tool(key3, e, "office_mark_read", {"message_id": repo_message["message_id"]})
+assert failed and refused["error"]["code"] == "forbidden", refused
+failed, ack = tool(key, a, "office_mark_read", {"message_id": sent["message_id"]})
+assert not failed and ack["status"] == "read", ack
+failed, refused = tool(key2, d, "office_mark_read", {"message_id": sent["message_id"]})
+assert failed and refused["error"]["code"] == "forbidden", refused
+failed, refused = tool(key2, d, "office_mark_read", {"message_id": sent["message_id"], "room": "repo"})
+assert failed and refused["error"]["code"] == "forbidden", refused
 
 key4 = secrets.token_hex(32)
 _, _, f4 = initialize(key4, "claude-code")

@@ -47,7 +47,7 @@ pub struct Session {
     last_used: Instant,
 }
 
-const ROOMED: [&str; 8] = [
+const ROOMED: [&str; 10] = [
     "office_read_messages",
     "office_read_since",
     "office_read_events",
@@ -56,6 +56,8 @@ const ROOMED: [&str; 8] = [
     "office_send_message",
     "office_update_summary",
     "office_watch_url",
+    "office_mark_read",
+    "office_wake_command",
 ];
 const MERGED: [&str; 4] = [
     "office_update_summary",
@@ -942,6 +944,20 @@ async fn routed(
             StatusCode::BAD_REQUEST,
             json!({"error":{"code":"invalid_request","message":"沒有這個辦公室，請先用 office_set_repo"}}),
         );
+    }
+    if name == "office_wake_command" && wanted.is_none() {
+        return dispatch(state, session, name, args, base).await;
+    }
+    if name == "office_mark_read" {
+        let mut refused = None;
+        for (_, view) in &targets {
+            let (status, body) = dispatch(state, view, name, args, base).await;
+            if status.is_success() {
+                return (status, body);
+            }
+            refused.get_or_insert((status, body));
+        }
+        return refused.unwrap_or_else(|| missing("message_id"));
     }
     if !merged {
         targets.truncate(1);
