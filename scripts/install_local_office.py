@@ -26,6 +26,7 @@ def install_files():
     INSTALL_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / 'hooks' / 'office_gate.py', INSTALL_DIR / 'office_gate.py')
     shutil.copy2(ROOT / 'integrations' / 'offora' / 'rules.txt', INSTALL_DIR / 'rules.txt')
+    shutil.copy2(ROOT / 'clients' / 'typescript' / 'office-listen.mjs', INSTALL_DIR / 'office-listen.mjs')
 
 
 def merge_hooks(path, extra_allow=None, append=False):
@@ -36,7 +37,7 @@ def merge_hooks(path, extra_allow=None, append=False):
     hooks = data.setdefault('hooks', {})
     for event in EVENTS:
         groups = [g for g in hooks.get(event, []) if not any('office_gate.py' in h.get('command', '') for h in g.get('hooks', []))]
-        command = f'OFFORA_URL={URL} /usr/bin/python3 -B {INSTALL_DIR / "office_gate.py"} {event}'
+        command = f'OFFORA_URL={URL} {"" if append else "OFFORA_LISTEN=1 "}/usr/bin/python3 -B {INSTALL_DIR / "office_gate.py"} {event}'
         group = {'hooks': [{'type': 'command', 'command': command, 'timeout': 5}]}
         groups.append(group) if append else groups.insert(0, group)
         hooks[event] = groups
