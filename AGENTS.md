@@ -28,10 +28,10 @@
 | `apps/` | 前端應用，目前是 `apps/web` 像素辦公室網頁 |
 | `clients/` | Python 與 TypeScript 的用戶端函式庫，以及 MCP 伺服器入口 |
 | `docs/` | 架構、整合契約、操作、設計與驗證文件 |
-| `hooks/` | 外掛的 hook 設定 |
+| `hooks/` | 外掛的 hook 設定，以及強制登記回報的 hook 腳本 |
 | `integrations/` | 給各家 AI 工具載入的 SKILL 與規則文字 |
 | `loops/` | 長任務的 LOOP 文件、檢查點與交付紀錄 |
 | `migrations/` | 資料庫結構變更的 SQL |
-| `scripts/` | 提交前檢查、容器冒煙測試與素材處理腳本 |
+| `scripts/` | 提交前檢查、容器冒煙測試、本機安裝與素材處理腳本 |
 | `src/` | Rust 伺服器原始碼 |
 | `tests/` | 跨元件的整合測試 |
