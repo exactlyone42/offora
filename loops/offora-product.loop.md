@@ -32,3 +32,5 @@
 2026-11-16：修正已讀與喚醒對 repo 房間無效（#52）。已讀不帶 room 時依序試電腦與 repo 房間；喚醒指令不帶 room 時涵蓋兩個房間。tests/mcp_integration.py 新增案例，修前失敗、修後通過；已合併 dev 並部署，線上 /version 為 5f43e7f，正式站以真實請求驗證 repo 訊息已讀成功。閒置宿主是否被背景指令喚醒仍未驗。
 
 2026-11-20：Offora 改架在本機（docker compose 專案 offora-local，127.0.0.1:18780，restart: unless-stopped），並用 hook 強制登記、每輪讀訊息與回報（#54，合併 935faac）。hooks/office_gate.py 加 tests/office_gate_test.py 9 項通過；check.sh、smoke.sh 通過；真實 claude -p 先登記再執行工具，codex exec 需信任 hook 後才強制（用 --dangerously-bypass-hook-trust 實測生效）。未完成：Codex 在 /hooks 信任 5 個新項目；閒置 agent 不輪詢也不會被叫醒，下一步是本機常駐喚醒程式；CD 部署與 /version 核對尚未做。
+
+2026-11-20：常駐即時監聽與交談指令上 dev（#56，合併 416ccb2）。Claude Code 的 Stop hook 要求每輪結束前有背景的 office-listen.mjs（走 socket 事件串流，不輪詢）；conversation.intent 點名本人或有給本人的訊息就喚醒。smoke 含即時喚醒與交談指令，真實 claude -p 先登記再自行取得並背景執行監聽。未完成：正式站 CD 部署失敗，原因是 AWS 拒絕 GitHub 的 OIDC 換角色（sts:AssumeRoleWithWebIdentity），#54、#55、#56 三次合併都同樣失敗，線上 /version 查不到；Codex 沒有已驗證的背景喚醒，只維持每輪讀取；同一 session 多個監聽可能重複喚醒。
