@@ -5,6 +5,7 @@ import time
 import urllib.error
 import subprocess
 import tempfile
+import threading
 import urllib.request
 
 base = os.environ["OFFORA_TEST_URL"]
@@ -113,6 +114,45 @@ assert not failed
 woken = run_wake(14)
 assert woken and "請看這個" in woken and "全體公告" not in woken, woken
 assert run_wake(14) is None
+
+listen_home = tempfile.mkdtemp()
+os.makedirs(os.path.join(listen_home, ".offora", "hook"))
+subprocess.run(["cp", "clients/typescript/office-listen.mjs", os.path.join(listen_home, ".offora", "hook")], check=True)
+
+
+def run_listener(seconds):
+    env = {**os.environ, "TMPDIR": tempfile.mkdtemp(), "HOME": listen_home}
+    try:
+        return subprocess.run(["bash", "-c", wake["command"]], capture_output=True, text=True, timeout=seconds, env=env).stdout
+    except subprocess.TimeoutExpired:
+        return None
+
+
+failed, whoami_b = tool(key, b, "office_whoami")
+assert not failed
+session_a, session_b = who["session_id"], whoami_b["session_id"]
+assert run_listener(6) is None
+
+
+def open_room():
+    time.sleep(3)
+    tool(key, b, "office_begin_conversation", {"client_message_id": "c-" + secrets.token_hex(8), "participants": [session_a, session_b], "summary": "專屬交談", "expires_in_seconds": 600})
+
+
+threading.Thread(target=open_room).start()
+directive = run_listener(20)
+assert directive and "join_conversation" in directive and "專屬交談" in directive, directive
+
+def speak():
+    time.sleep(3)
+    pushed_sends.append(tool(key, b, "office_send_message", {"client_message_id": "l-" + secrets.token_hex(8), "text": f"{code_a} 即時連線喚醒"}))
+
+
+pushed_sends = []
+started = time.monotonic()
+threading.Thread(target=speak).start()
+pushed = run_listener(20)
+assert pushed and "即時連線喚醒" in pushed and time.monotonic() - started < 9, (pushed, pushed_sends)
 
 limited = [tool(key, b, "office_send_message", {"client_message_id": "x-" + secrets.token_hex(8), "text": f"洗版 {i}"}) for i in range(14)]
 assert any(failed and result["error"]["code"] == "rate_limited" for failed, result in limited), limited

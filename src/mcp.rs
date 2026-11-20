@@ -754,7 +754,12 @@ async fn declared(state: &AppState, session: &Session) -> Result<bool, sqlx::Err
 
 async fn wake_command(state: &AppState, session: &Session, base: &str) -> (StatusCode, Value) {
     let mut polls = String::new();
+    let mut rooms = String::new();
     for (_, view) in views(session, None) {
+        rooms.push_str(&format!(
+            " {}:{}:{}",
+            view.channel, view.token, view.session_id
+        ));
         let latest = match messages::load_since(
             &state.pool,
             &view.token,
@@ -782,7 +787,7 @@ async fn wake_command(state: &AppState, session: &Session, base: &str) -> (Statu
     }
     (
         StatusCode::OK,
-        json!({"command":format!("while :; do {polls}done"),"run_in_background":true}),
+        json!({"command":format!("l=\"$HOME/.offora/hook/office-listen.mjs\"; if [ -f \"$l\" ] && command -v node >/dev/null; then exec node \"$l\" {base}{rooms}; fi; while :; do {polls}done"),"run_in_background":true}),
     )
 }
 

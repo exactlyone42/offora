@@ -39,10 +39,10 @@ class GateTest(unittest.TestCase):
     def tearDown(self):
         self.dir.cleanup()
 
-    def run_gate(self, event, url=None, **payload):
+    def run_gate(self, event, url=None, listen=False, **payload):
         payload.setdefault('session_id', self.sid)
         payload.setdefault('cwd', self.dir.name)
-        env = dict(os.environ, OFFORA_URL=url or self.url, OFFORA_GATE_DIR=self.dir.name + '/gate', PYTHONDONTWRITEBYTECODE='1')
+        env = dict(os.environ, OFFORA_URL=url or self.url, OFFORA_GATE_DIR=self.dir.name + '/gate', PYTHONDONTWRITEBYTECODE='1', OFFORA_LISTEN='1' if listen else '0')
         result = subprocess.run([sys.executable, '-B', str(GATE), event], input=json.dumps(payload), capture_output=True, text=True, env=env, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
@@ -116,6 +116,28 @@ class GateTest(unittest.TestCase):
         self.assertEqual(results[:6], [True] * 6)
         self.assertEqual(results[6:], [False, False])
         self.assertEqual(self.run_gate('Stop'), {})
+
+    def test_stop_requires_a_live_listener_when_enabled(self):
+        self.start()
+        self.done('office_describe', 'office_update_summary', 'office_read_since')
+        self.assertEqual(self.run_gate('Stop'), {})
+        self.assertIn('office_wake_command', self.run_gate('Stop', listen=True)['reason'])
+        command = 'exec node "$l" http://x room-1:' + '0' * 64 + ':sid-1'
+        marker = 'office-listen.mjs'
+        process = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(30)', marker, 'room-1:token:sid-1'])
+        try:
+            self.run_gate('PostToolUse', tool_name='Bash', tool_input={'command': command + ' ' + marker})
+            self.assertEqual(self.run_gate('Stop', listen=True), {})
+        finally:
+            process.kill()
+            process.wait()
+        self.assertIn('office_wake_command', self.run_gate('Stop', listen=True)['reason'])
+
+    def test_unrelated_bash_does_not_count_as_listener(self):
+        self.start()
+        self.done('office_describe', 'office_update_summary', 'office_read_since')
+        self.run_gate('PostToolUse', tool_name='Bash', tool_input={'command': 'ls room-1:' + '0' * 64 + ':sid'})
+        self.assertEqual(self.run_gate('Stop', listen=True)['decision'], 'block')
 
     def test_sessions_are_isolated(self):
         self.start()

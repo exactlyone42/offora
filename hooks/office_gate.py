@@ -14,6 +14,8 @@ RULES = [Path(os.environ['OFFORA_RULES'])] if os.environ.get('OFFORA_RULES') els
 MAX_DENIALS = 6
 TOOL_PREFIXES = ('mcp__offora__', 'mcp__plugin_offora_offora__')
 ALWAYS_ALLOWED = {'ToolSearch'}
+LISTEN = os.environ.get('OFFORA_LISTEN') == '1'
+LISTENER = 'office-listen.mjs'
 READ_TOOLS = {'office_read_messages', 'office_read_since'}
 
 
@@ -131,10 +133,36 @@ def handle_pre(payload):
     return {'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': reason}}
 
 
+def listener_channels(command):
+    if LISTENER not in command:
+        return []
+    return re.findall(r'(\S+?):[0-9a-f]{64}:\S+', command)
+
+
+def listening(state):
+    channels = state.get('listen') or []
+    for path in Path('/proc').glob('[0-9]*/cmdline'):
+        try:
+            args = path.read_bytes().decode('utf-8', 'replace').split('\0')
+        except OSError:
+            continue
+        if any(arg.endswith(LISTENER) for arg in args) and any(arg.startswith(channel + ':') for arg in args for channel in channels):
+            return True
+    return False
+
+
 def handle_post(payload):
     session_id = payload.get('session_id') or ''
-    name = short(payload.get('tool_name') or '')
-    if not session_id or name is None:
+    tool = payload.get('tool_name') or ''
+    name = short(tool)
+    if not session_id:
+        return {}
+    if name is None:
+        channels = listener_channels(str((payload.get('tool_input') or {}).get('command') or '')) if tool == 'Bash' else []
+        if channels:
+            state = load(session_id)
+            state['listen'] = channels
+            save(session_id, state)
         return {}
     state = load(session_id)
     if name not in state['done']:
@@ -163,9 +191,14 @@ def handle_stop(payload):
     if not (READ_TOOLS & set(state['turn'])):
         needed.append('office_read_since')
     needed = list(dict.fromkeys(needed))
-    if not needed:
+    reasons = []
+    if needed:
+        reasons.append('結束前必須完成辦公室回報：呼叫 ' + '、'.join(needed) + '。')
+    if LISTEN and not listening(state):
+        reasons.append('結束前必須有常駐監聽：呼叫 office_wake_command，並用 Bash 背景執行它回傳的 command。')
+    if not reasons:
         return {}
-    return {'decision': 'block', 'reason': '結束前必須完成辦公室回報：呼叫 ' + '、'.join(needed) + '。'}
+    return {'decision': 'block', 'reason': ''.join(reasons)}
 
 
 def main():
