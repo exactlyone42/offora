@@ -133,6 +133,17 @@ class GateTest(unittest.TestCase):
             process.wait()
         self.assertIn('office_wake_command', self.run_gate('Stop', listen=True)['reason'])
 
+    def test_listener_of_another_session_does_not_count(self):
+        self.start()
+        self.done('office_describe', 'office_update_summary', 'office_read_since')
+        process = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(30)', 'office-listen.mjs', 'room-1:token:sid-other'])
+        try:
+            self.run_gate('PostToolUse', tool_name='Bash', tool_input={'command': 'exec node "$l" http://x room-1:' + '0' * 64 + ':sid-1; fi'})
+            self.assertEqual(self.run_gate('Stop', listen=True)['decision'], 'block')
+        finally:
+            process.kill()
+            process.wait()
+
     def test_unrelated_bash_does_not_count_as_listener(self):
         self.start()
         self.done('office_describe', 'office_update_summary', 'office_read_since')

@@ -133,20 +133,20 @@ def handle_pre(payload):
     return {'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'deny', 'permissionDecisionReason': reason}}
 
 
-def listener_channels(command):
+def listener_rooms(command):
     if LISTENER not in command:
         return []
-    return re.findall(r'(\S+?):[0-9a-f]{64}:\S+', command)
+    return re.findall(r'([\w.-]+):[0-9a-f]{64}:([\w-]+)', command)
 
 
 def listening(state):
-    channels = state.get('listen') or []
+    rooms = state.get('listen') or []
     for path in Path('/proc').glob('[0-9]*/cmdline'):
         try:
             args = path.read_bytes().decode('utf-8', 'replace').split('\0')
         except OSError:
             continue
-        if any(arg.endswith(LISTENER) for arg in args) and any(arg.startswith(channel + ':') for arg in args for channel in channels):
+        if any(arg.endswith(LISTENER) for arg in args) and any(arg.startswith(channel + ':') and arg.endswith(':' + sid) for arg in args for channel, sid in rooms):
             return True
     return False
 
@@ -158,10 +158,10 @@ def handle_post(payload):
     if not session_id:
         return {}
     if name is None:
-        channels = listener_channels(str((payload.get('tool_input') or {}).get('command') or '')) if tool == 'Bash' else []
-        if channels:
+        rooms = listener_rooms(str((payload.get('tool_input') or {}).get('command') or '')) if tool == 'Bash' else []
+        if rooms:
             state = load(session_id)
-            state['listen'] = channels
+            state['listen'] = rooms
             save(session_id, state)
         return {}
     state = load(session_id)

@@ -25,7 +25,7 @@ async function api(room, path, init = {}) {
 }
 
 function cursorFile(room) {
-  return join(process.env.TMPDIR || tmpdir(), `offora-wake-${room.channel}`)
+  return join(process.env.TMPDIR || tmpdir(), `offora-wake-${room.sessionId}`)
 }
 
 async function messageCursor(room) {
@@ -55,8 +55,8 @@ async function checkMessages(room) {
 async function listen(room) {
   for (;;) {
     try {
-      await checkMessages(room)
       if (!room.events) room.events = (await api(room, `/api/v1/events/since?channel_id=${room.channel}&after_seq=0&limit=1`)).latest_seq
+      await checkMessages(room)
       const { ticket } = await api(room, '/api/v1/socket-ticket', {
         method: 'POST',
         body: JSON.stringify({ channel_id: room.channel, after_seq: room.events, stream: 'events' })
